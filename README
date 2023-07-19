@@ -1,0 +1,5 @@
+Creates a patched Discord installation that uses the system's Electron.
+Currently only works on Debian or Ubuntu.
+
+To set up, run: python3 setup.py (Python v3.10+ is required).
+Once setup succeeds, execute ./run.py directly.

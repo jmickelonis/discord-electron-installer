@@ -1,0 +1,5 @@
+Package: discord-electron
+Version: __VERSION__
+Maintainer: John Mickelonis
+Architecture: all
+Description: A local installation if Discord that uses the system version of Electron.
