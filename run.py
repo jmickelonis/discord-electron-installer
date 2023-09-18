@@ -65,9 +65,7 @@ def npm_install(name: str, version: str | None = None):
     npm_update_from_version(name, installed_version, latest_version)
 
 
-def npm_update_from_version(
-    name: str, installed_version: str, latest_version: str | None = None
-):
+def npm_update_from_version(name: str, installed_version: str, latest_version: str | None = None):
     if not latest_version:
         latest_version = npm_get_latest_version(name)
 
@@ -87,9 +85,7 @@ def check_apt():
         if version := versions.get(name):
             print(f'apt - {name} found: v{version}')
             continue
-        if not click.confirm(
-            f'apt - {name} not found! Install (required)?', default=True
-        ):
+        if not click.confirm(f'apt - {name} not found! Install (required)?', default=True):
             exit()
         run(['sudo', 'apt', 'install', name])
 
@@ -138,9 +134,7 @@ def main():
     if installed_version == version:
         print(f'* {deb_package} v{version} is already installed.')
 
-    if not click.confirm(
-        f'Build Debian package for {name} {version}?', default=default_install
-    ):
+    if not click.confirm(f'Build Debian package for {name} {version}?', default=default_install):
         exit()
 
     root = Path(__file__).parent.absolute()
@@ -258,8 +252,11 @@ electron {str(dest / lib / 'app.asar')!r} "$@"
     run(['dpkg-deb', '--build', deb_package], check=True)
 
     file = Path(f'{deb_package}.deb')
-    if click.confirm(f'Install {file}?', default=False):
+    if click.confirm(f'Install {file}?', default=True):
         run(['sudo', 'apt', 'install', file.absolute()])
+
+    print('Finished! Press any key to exit.')
+    input()
 
 
 if __name__ == '__main__':
