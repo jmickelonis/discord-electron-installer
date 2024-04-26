@@ -185,9 +185,18 @@ def main():
     s = s.replace('process.resourcesPath', repr(str(dest / lib)))
     file.write_text(s)
 
+    file = Path('resources/app/common/paths.js')
+    s = file.read_text()
+    s = re.sub(r'\s*(?:let )?resourcesPath = .*;', '', s)
+    s = s.replace('return resourcesPath', f'return {str(dest / lib)!r}')
+    file.write_text(s)
+
     file = Path('resources/app/app_bootstrap/autoStart/linux.js')
     s = file.read_text()
-    s = s.replace('exeDir,', f'{str(dest / pixmaps)!r},')
+    # s = s.replace('exeDir,', f'{str(dest / pixmaps)!r},')
+    s = s = re.sub('(Exec=).*', fr'\1{dest / binary}', s)
+    s = s = re.sub('(Name=).*', fr'\1{package_name}', s)
+    s = s = re.sub('(Icon=).*', fr'\1{package_name}', s)
     file.write_text(s)
 
     run(['asar', 'p', app, app_asar], check=True)
@@ -253,7 +262,7 @@ electron {str(dest / lib / 'app.asar')!r} "$@"
 
     file = Path(f'{deb_package}.deb')
     if click.confirm(f'Install {file}?', default=True):
-        run(['sudo', 'apt', 'install', file.absolute()])
+        run(['sudo', 'apt', 'install', '--reinstall', '-y', file.absolute()])
 
     print('Finished! Press any key to exit.')
     input()
