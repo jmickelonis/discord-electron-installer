@@ -1,0 +1,8 @@
+[Desktop Entry]
+Version=1.0
+Name=Update Discord
+Comment=Installs the latest version of Discord and updates associated libraries.
+Exec=konsole -e update-discord
+Icon=discord
+Type=Application
+Categories=Network;Utility;
