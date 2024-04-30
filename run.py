@@ -246,7 +246,7 @@ def _do_install(full: bool):
 
     s = f'''#!/bin/bash
 
-if which update-discord; then
+if which update-discord > /dev/null 2>&1; then
     update-discord needs-update
     if [[ "$?" == 1 ]]; then
         konsole -e 'update-discord --silent'
