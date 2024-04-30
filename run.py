@@ -3,6 +3,8 @@
 import json
 import os
 import re
+from argparse import ArgumentParser
+from dataclasses import dataclass
 from pathlib import Path
 from shutil import copy, copytree, rmtree
 from subprocess import run
@@ -10,7 +12,17 @@ from subprocess import run
 import click
 import requests
 
+_DEB_PACKAGE = 'discord-electron'
 _INSTALLED_VERSION_PATTERN = re.compile(r'^(\S+)/\S+ (\S+) ')
+_REQUEST_URL = 'https://discord.com/api/download?platform=linux&format=tar.gz'
+
+
+@dataclass
+class VersionInfo:
+    url: str
+    archive: str
+    name: str
+    version: str
 
 
 def apt_get_installed_version(name: str) -> str | None:
@@ -111,37 +123,50 @@ def check_npm():
     npm_install('@electron/asar')
 
 
-def main():
-    check_apt()
-    check_npm()
-
-    request_url = 'https://discord.com/api/download?platform=linux&format=tar.gz'
-    url = requests.head(request_url, allow_redirects=True).url
+def get_version_info() -> VersionInfo:
+    url = requests.head(_REQUEST_URL, allow_redirects=True).url
 
     match = re.fullmatch(r'.*/((\S+)-(\d+\.\d+\.\d+)\.tar\.gz)', url)
     if not match:
         print('Invalid response URL: {url}')
-        exit()
+        exit(-1)
 
-    name = match[2]
-    version = match[3]
+    return VersionInfo(url=url, archive=match[1], name=match[2], version=match[3])
 
-    deb_package = 'discord-electron'
-    installed_version = apt_get_installed_version(deb_package)
 
-    default_install = installed_version != version
+def _do_needs_update():
+    info = get_version_info()
+    needs = apt_get_installed_version(_DEB_PACKAGE) != info.version
+    print(info.url)
+    print('Update needed:', needs)
+    exit(1 if needs else 0)
 
-    if installed_version == version:
-        print(f'* {deb_package} v{version} is already installed.')
 
-    if not click.confirm(f'Build Debian package for {name} {version}?', default=default_install):
+def _do_install(full: bool):
+    if full:
+        check_apt()
+        check_npm()
+
+    version_info = get_version_info()
+    version = version_info.version
+    installed_version = apt_get_installed_version(_DEB_PACKAGE)
+    already_installed = version == installed_version
+
+    if already_installed:
+        print(f'* {_DEB_PACKAGE} v{version} is already installed.')
+    else:
+        print(f'Installing {_DEB_PACKAGE} v{version}...')
+
+    if full and not click.confirm(
+        f'Build Debian package for {version_info.name} {version}?', default=not already_installed
+    ):
         exit()
 
     root = Path(__file__).parent.absolute()
     os.chdir(root)
 
     archives = root / 'archives'
-    archive = archives / match[1]
+    archive = archives / version_info.archive
 
     if not archives.is_dir():
         archives.mkdir()
@@ -150,7 +175,7 @@ def main():
 
     if must_download:
         print('Downloading archive...')
-        run(f'wget -c {url!r}', check=True, shell=True, cwd=archives)
+        run(f'wget -c {version_info.url!r}', check=True, shell=True, cwd=archives)
 
     print('Decompressing archive...')
     run(['tar', '-xzf', archive], check=True)
@@ -193,7 +218,6 @@ def main():
 
     file = Path('resources/app/app_bootstrap/autoStart/linux.js')
     s = file.read_text()
-    # s = s.replace('exeDir,', f'{str(dest / pixmaps)!r},')
     s = s = re.sub('(Exec=).*', fr'\1{dest / binary}', s)
     s = s = re.sub('(Name=).*', fr'\1{package_name}', s)
     s = s = re.sub('(Icon=).*', fr'\1{package_name}', s)
@@ -205,7 +229,7 @@ def main():
     os.chdir(root)
 
     build = root / 'build'
-    deb = build / deb_package
+    deb = build / _DEB_PACKAGE
 
     print('Creating installation files...')
     if build.exists():
@@ -221,6 +245,14 @@ def main():
     dst = deb / dest.relative_to('/')
 
     s = f'''#!/bin/bash
+
+if which update-discord; then
+    update-discord needs-update
+    if [[ "$?" == 1 ]]; then
+        konsole -e 'update-discord --silent'
+    fi
+fi
+
 electron {str(dest / lib / 'app.asar')!r} "$@"
 '''
     file = src / 'launcher.sh'
@@ -251,21 +283,47 @@ electron {str(dest / lib / 'app.asar')!r} "$@"
 
     rmtree(src)
 
-    if must_download and click.confirm('Delete archive?', default=True):
+    if full and must_download and click.confirm('Delete archive?', default=True):
         archive.unlink()
         if not os.listdir(archives):
             archives.rmdir()
 
     print('Creating Debian package...')
     os.chdir(build)
-    run(['dpkg-deb', '--build', deb_package], check=True)
+    run(['dpkg-deb', '--build', _DEB_PACKAGE], check=True)
 
-    file = Path(f'{deb_package}.deb')
-    if click.confirm(f'Install {file}?', default=True):
+    file = Path(f'{_DEB_PACKAGE}.deb')
+    if not full or click.confirm(f'Install {file}?', default=True):
         run(['sudo', 'apt', 'install', '--reinstall', '-y', file.absolute()])
 
-    print('Finished! Press any key to exit.')
-    input()
+    if full:
+        print('Finished! Press any key to exit.')
+        input()
+
+
+def main():
+    parser = ArgumentParser(
+        prog='update-discord',
+        description='Updates Discord and associated system libraries',
+    )
+    parser.add_argument('--silent', action='store_true')
+    parser.set_defaults(fn=None)
+
+    parsers = parser.add_subparsers(title='action')
+
+    sub_parser = parsers.add_parser(
+        'needs-update',
+        description='Checks if an update is needed',
+    )
+    sub_parser.set_defaults(fn=_do_needs_update)
+
+    args = parser.parse_args()
+
+    if args.fn:
+        args.fn()
+        exit()
+
+    _do_install(not args.silent)
 
 
 if __name__ == '__main__':
