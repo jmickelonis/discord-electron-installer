@@ -260,6 +260,16 @@ electron {str(dest / lib / 'app.asar')!r} "$@"
     binary = dst / binary
     run(['install', '-Dm', '755', file, binary], check=True)
 
+    file = dst / _bin / 'update-discord'
+    file.write_text(
+        f'''#!/bin/bash
+set -e
+cd {root} || exit
+./run.py "$@"
+'''
+    )
+    run(['chmod', '+x', file], check=True)
+
     lib = dst / lib
     run(['install', '-d', lib], check=True)
     copytree(src / 'resources', lib, dirs_exist_ok=True)
@@ -280,6 +290,7 @@ electron {str(dest / lib / 'app.asar')!r} "$@"
         src / 'discord.desktop',
         applications / f'{package_name}.desktop',
     )
+    copy(root / 'update-discord.desktop', applications)
 
     rmtree(src)
 
