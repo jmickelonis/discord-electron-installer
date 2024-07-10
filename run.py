@@ -218,9 +218,10 @@ def _do_install(full: bool):
 
     file = Path('resources/app/app_bootstrap/autoStart/linux.js')
     s = file.read_text()
-    s = s = re.sub('(Exec=).*', fr'\1{dest / binary}', s)
-    s = s = re.sub('(Name=).*', fr'\1{package_name}', s)
-    s = s = re.sub('(Icon=).*', fr'\1{package_name}', s)
+    s = re.sub('const (?:appName|exePath|exeDir|iconPath) = .*', '', s)
+    s = re.sub('(Exec=).*', fr'\1{dest / binary}', s)
+    s = re.sub('(Name=).*', fr'\1{package_name}', s)
+    s = re.sub('(Icon=).*', fr'\1{package_name}', s)
     file.write_text(s)
 
     run(['asar', 'p', app, app_asar], check=True)
